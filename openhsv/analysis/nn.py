@@ -153,8 +153,9 @@ class Analysis(QWidget):
         # Save segmentation and GAW
         self.segmentations.append(pr)
         prsum = pr.sum()
-        print(prsum)
-        self.GAW.append(prsum)
+        area_value = np.float32(prsum).item()
+        print(area_value)
+        self.GAW.append(area_value)
 
         # Transpose image if RGB
         if im.ndim == 3:

@@ -20,6 +20,7 @@ import os
 from datetime import datetime
 from scipy.io.wavfile import read
 from pathlib import Path
+import csv
 
 # Own scripts
 from openhsv.analysis.nn import Analysis
@@ -328,7 +329,8 @@ class OpenHSV (QWidget):
             self.saveButton.setEnabled(True)
             self.startAnalysisButton.setEnabled(True)
             self.playStopButton.setEnabled(True)
-            self.analyze()
+            glottis_area = self.analyze()
+            self.saveGAWInformation(glottis_area)
             return True
         QMessageBox.critical(self,
             "No camera found",
@@ -615,20 +617,28 @@ class OpenHSV (QWidget):
                 self.progess.setValue(0)
                 self.progess.setEnabled(False)
                 break
-
-
-        # Show parameters
-        params = self.analysis.computeParameters(dt_audio=1/self.audioSamplingRate,
-            dt_video=1/self.videoSamplingRate)
-
+        
+        glottis_area = self.analysis.GAW
+        logging.info(type(glottis_area))
+        logging.info(type(glottis_area[0]))
         # Save metadata
         self.analysis = self.analysis.get()
         self.analysis['start_frame'] = start
         self.analysis['end_frame'] = end
         self.analysis['roi_pos'] = [int(i) for i in self.roi.pos()]
         self.analysis['roi_size'] = [int(i) for i in self.roi.size()]
-        self.analysis['parameters'] = params        
+        return glottis_area
         
+    def saveGAWInformation(self, glottisArea: list[float]):
+        logging.info(f"The area type is: {type(glottisArea[0])}")
+        file_name = QFileDialog.getSaveFileName(self, caption='Save File', filter="CSV files (*.csv)")[0]
+        print(type(glottisArea))
+        # Specify newline='' to avoid redundant newline between each row.
+        with open(file_name, 'w', newline='') as file:
+            writer = csv.writer(file)
+            for area in glottisArea:
+                writer.writerow([area])
+
 
     def save(self, save_last_seconds=4):
         """Saves the recorded and selected data. In particular, we save
