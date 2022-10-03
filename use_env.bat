@@ -1,0 +1,1 @@
+.\throat\Scripts\activate.bat

@@ -1,0 +1,10 @@
+.vscode
+openhsv.egg-info
+docs/build
+openhsv/__pycache__
+openhsv/hardware/__pycache__
+openhsv/gui/__pycache__
+openhsv/analysis/__pycache__
+openhsv/Sprechstunde
+settings.json
+throat
