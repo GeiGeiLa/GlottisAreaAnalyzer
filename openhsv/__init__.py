@@ -93,7 +93,14 @@ class OpenHSV (QWidget):
 
 
         _, self.fake_reference = read(str(self.base_folder / "examples/audio.wav"))
+        # Create camera / frame preview window with rectangle for image analysis
+        self.im = pg.ImageView()
+        self.im.setFixedWidth(1200)
+        self.im.setImage(np.zeros((1000, 1000)))
+        self.roi = pg.RectROI([0, 0], [100, 100])
 
+        self.im.getView().addItem(self.roi)
+        self.im.getView().setMenuEnabled(False)
         # F0
         self.f0_item = pg.TextItem("xxx Hz")
         self.f0_item.setFont(QFont("Arial", 15))
