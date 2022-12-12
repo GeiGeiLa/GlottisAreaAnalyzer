@@ -1,5 +1,4 @@
 # Libraries used
-from email.mime import base
 from PyQt5.QtWidgets import QApplication, QWidget, QGridLayout, QSlider, QPushButton, QProgressBar, QLabel, \
     QMessageBox, QSplashScreen, QSizePolicy, QDialog, QLineEdit, QDateEdit, QCheckBox, QComboBox, QFileDialog
 from PyQt5.QtGui import QPixmap, QPainter, QBrush, QColor, QPen, QIntValidator, QFont
@@ -94,13 +93,11 @@ class OpenHSV (QWidget):
 
         _, self.fake_reference = read(str(self.base_folder / "examples/audio.wav"))
         # Create camera / frame preview window with rectangle for image analysis
-        self.im = pg.ImageView()
-        self.im.setFixedWidth(1200)
-        self.im.setImage(np.zeros((1000, 1000)))
-        self.roi = pg.RectROI([0, 0], [100, 100])
+        self.previewImage = pg.ImageView()
+        self.previewImage.setFixedWidth(1200)
+        self.previewImage.setImage(np.zeros((1000, 1000)))
+        rectPosition = [0, 0]
 
-        self.im.getView().addItem(self.roi)
-        self.im.getView().setMenuEnabled(False)
         # F0
         self.f0_item = pg.TextItem("xxx Hz")
         self.f0_item.setFont(QFont("Arial", 15))
@@ -125,6 +122,10 @@ class OpenHSV (QWidget):
         self.bInitCamera = QPushButton("選擇影片")
         self.bInitCamera.clicked.connect(self.changeVideo)
         self.layout.addWidget(self.bInitCamera, 4, 1, 2, 1)
+        self.testROIButton = QPushButton("測試ROI範圍")
+        self.testROIButton.clicked.connect(self.printROI)
+        self.layout.addWidget(self.testROIButton, 4, 1, 1, 1)
+
 
         self.start_slider = QSlider(orientation=Qt.Horizontal)
         self.start_slider.setMinimum(1)
@@ -160,6 +161,7 @@ class OpenHSV (QWidget):
         self.startAnalysisButton = QPushButton("開始分析 - Glottis Segmentation")
         self.startAnalysisButton.setEnabled(False)
         self.startAnalysisButton.clicked.connect(self.analyze)
+        self.layout.addWidget(self.previewImage, 4, 0, 10, 1)
 
         self.progess = QProgressBar()
         self.progess.setMinimum(0)
@@ -185,6 +187,15 @@ class OpenHSV (QWidget):
 
     def doAutomaticTasksAfterInit(self):
         pass
+    
+    def printROI(self):
+        pos = self.roi.pos()
+        size = self.roi.size()
+        x1 = int(pos[1])
+        y1 = int(pos[1]+size[1])
+        x2 = int(pos[0])
+        y2 = int(pos[0]+size[0])
+        logging.info(f"{x1}:{y1}, {x2}:{y2}")
 
     def findpatient(self):
         """Opens a window to select patient from database.
@@ -302,10 +313,12 @@ class OpenHSV (QWidget):
         # Get ROI position and size
         pos = self.roi.pos()
         size = self.roi.size()
-
+        x1 = int(pos[1])
+        y1 = int(pos[1]+size[1])
+        x2 = int(pos[0])
+        y2 = int(pos[0]+size[0])
         # Crop image to ROI selection
-        return im[int(pos[1]):int(pos[1]+size[1]), 
-                  int(pos[0]):int(pos[0]+size[0])]
+        return im[x1 : y1, x2 : y2]
 
     def changeVideo(self, force_init=False):
         """Initializes camera connection. Open camera, do basic configuration
@@ -327,8 +340,6 @@ class OpenHSV (QWidget):
             theshape = np.shape(self.camera.videoFrames[0])
             videoWidth = theshape[1]
             videoHeight = theshape[0]
-            logging.info(theshape)
-            self.roi = pg.RectROI([0, 0], [videoWidth, videoHeight])
             # Basic configuration, such as camera gain
             self.camera.configCam()
             # Specific settings, such as exposure time and sampling rate
@@ -336,8 +347,6 @@ class OpenHSV (QWidget):
             self.saveButton.setEnabled(True)
             self.startAnalysisButton.setEnabled(True)
             self.playStopButton.setEnabled(True)
-            glottis_area = self.analyze()
-            self.saveGAWInformation(glottis_area)
             return True
         QMessageBox.critical(self,
             "No camera found",
@@ -358,7 +367,7 @@ class OpenHSV (QWidget):
             self.timer.start(34)
             self.play = True
 
-    def setImage(self, im, restore_view=True, restore_levels=False):
+    def setPreviewImage(self, im, restore_view=True, restore_levels=False):
         """Shows image in the camera preview window. It further can restore the previous
         view, i.e. zoom and location, as well as the levels (contrast, brightness) of the
         previous image. Currently, the restoring level feature is by default deactivated,
@@ -373,18 +382,28 @@ class OpenHSV (QWidget):
         :type restore_levels: bool, optional
         """
         # Save view from current image
-        state, levels = self.im.getView().getState(), self.im.getImageItem().levels
+        state, levels = self.previewImage.getView().getState(), self.previewImage.getImageItem().levels
 
         # Set new image
-        self.im.setImage(im)
+        self.previewImage.setImage(
+            im,
+            autoRange=False)
 
         # Restore view
         if restore_view:
-            self.im.getView().setState(state)
+            self.previewImage.getView().setState(state)
 
         # Restore levels
         if restore_levels:
-            self.im.getImageItem().setLevels(levels)
+            self.previewImage.getImageItem().setLevels(levels)
+
+        self.roi = pg.RectROI(
+            pos=[0,0],
+            size=[100, 100],
+            rotatable=False)
+
+        self.previewImage.getView().addItem(self.roi)
+        self.previewImage.getView().setMenuEnabled(True)
 
     def nextFrame(self):
         self.cur_frame += 1
@@ -393,7 +412,7 @@ class OpenHSV (QWidget):
             self.cur_frame = self.start_slider.value()
 
         im = self.camera.getMemoryFrame(self.cur_frame, by_trigger=True)
-        self.setImage(im.transpose((1, 0, 2)))
+        self.setPreviewImage(im.transpose((1, 0, 2)))
 
     def initAudio(self):
         """initialize audio recorder and empties the audio queue and data list. 
@@ -552,7 +571,7 @@ class OpenHSV (QWidget):
 
                     self.cur_frame = new_frame
                     im = self.camera.getMemoryFrame(self.cur_frame, by_trigger=True)
-                    self.setImage(im.transpose((1, 0, 2)))
+                    self.setPreviewImage(im.transpose((1, 0, 2)))
             except:
                 pass
 
@@ -567,7 +586,6 @@ class OpenHSV (QWidget):
 
         if start == end:
             return
-
         elif end-start < 5:
             return
 
@@ -575,13 +593,10 @@ class OpenHSV (QWidget):
             k = QMessageBox.question(self,
                     "Delete analysis?",
                     "We found an analysis already, do you want to delete this analysis and start over again?")
-
             if k == QMessageBox.No:
                 return
-
-            else:
-                self.analysis = None
-                self.imagingData = []
+            self.analysis = None
+            self.imagingData = []
 
         w = Waiting("please wait, loading...", show_gif=False)
         w.activateWindow()
@@ -602,18 +617,18 @@ class OpenHSV (QWidget):
         # Analyze data frame by frame
         for i, frame_index in enumerate(range(start-1, end)):
             # Get frame from camera
-            im = self.camera.getMemoryFrame(frame_index, by_trigger=True)
+            videoFrame = self.camera.getMemoryFrame(frame_index, by_trigger=True)
 
             # Raw endoscopy image
-            self.imagingData.append(im)
+            self.imagingData.append(videoFrame)
 
             # Crop to ROI
-            im_crop = self._crop(im)
+            croppedImage = self._crop(videoFrame)
             # Normalize image
-            im_crop = (im_crop - im_crop.min()) / (im_crop.max() - im_crop.min()) * 2 - 1
+            croppedImage = (croppedImage - croppedImage.min()) / (croppedImage.max() - croppedImage.min()) * 2 - 1
 
             # Segment cropped image
-            self.analysis.segment(im_crop)
+            self.analysis.segment(croppedImage)
 
             # Show progress on progress bar
             self.progess.setValue(int(np.ceil(i / (end - start + 1e-5) * 100)))
@@ -634,9 +649,11 @@ class OpenHSV (QWidget):
         self.analysis['end_frame'] = end
         self.analysis['roi_pos'] = [int(i) for i in self.roi.pos()]
         self.analysis['roi_size'] = [int(i) for i in self.roi.size()]
-        return glottis_area
+        self.saveGAWInformation(glottis_area)
         
+    
     def saveGAWInformation(self, glottisArea: list[float]):
+        """將偵測到的喉口大小儲存為csv檔案"""
         logging.info(f"The area type is: {type(glottisArea[0])}")
         file_name = QFileDialog.getSaveFileName(self, caption='Save File', filter="CSV files (*.csv)")[0]
         print(type(glottisArea))
@@ -902,7 +919,7 @@ class OpenHSV (QWidget):
             "Data was successfully saved here: \n{}\n\n{}".format(folder_name, "\n".join(saved)))
 
     def close(self):
-        self.im.close()
+        self.previewImage.close()
         super().close()
 
 

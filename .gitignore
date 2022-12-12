@@ -8,3 +8,5 @@ openhsv/analysis/__pycache__
 openhsv/Sprechstunde
 settings.json
 throat
+build
+dist

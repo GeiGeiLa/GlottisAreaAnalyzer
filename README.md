@@ -10,6 +10,14 @@ This project is originated from [OpenHSV](https://github.com/anki-xyz/openhsv), 
 
 Please clone from the OpenHSV repository, and then install required dependencies according to the requirements.txt
 
+## Run
+
+1. Use the designated Python environment
+`cd {OpenHSVRootFolder}`
+`./throat/Scripts/activate`
+2. Execute the main script file
+`python main.py`
+
 ## Usage and Documentation
 
 You find all the documentation from OpenHSV website: 
